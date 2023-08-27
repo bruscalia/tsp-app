@@ -3,3 +3,5 @@ venv
 experimental
 drafts
 __pycache__
+assets/*.gif
+assets/*.mp4
