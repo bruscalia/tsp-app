@@ -2,8 +2,11 @@
 
 An optimization app for the Traveling Salesman Problem.
 
+<p align="left">
+  <img src="./assets/icon_tsp.png" width="200" title="icon tsp">
+</p>
 
-## Tutorial
+## Execution
 
 ### Python
 
