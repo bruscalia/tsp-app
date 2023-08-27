@@ -1,26 +1,49 @@
 import os
 from io import BytesIO
 import json
+from typing import List
 
-import streamlit as st
 import pandas as pd
 from pyomo.contrib.appsi.solvers.highs import Highs
+import streamlit as st
 from streamlit_folium import st_folium
 
 from optimize.tsp import get_distance_xy, build_mip, solve_mip, TSP, plot_tour, request_matrix,\
-    create_map
+    plot_map, get_coord_path
 
 
-# Converts dataframe to csv to download
-@st.cache
-def convert_df(dataframe: pd.DataFrame):
-    return dataframe.to_csv().encode('utf-8')
+# Create current solution as session_state
+if "tour" not in st.session_state:
+    st.session_state.tour = None
+
+if "dataframe" not in st.session_state:
+    st.session_state.dataframe = None
+
+if "sol" not in st.session_state:
+    st.session_state.sol = None
+
+if "route_path" not in st.session_state:
+    st.session_state.route_path = None
 
 
 # Finds distance matrix
 @st.cache
 def driving_distances(dataframe: pd.DataFrame):
     return request_matrix(dataframe)["distances"] / 1000
+
+
+# Callback uploading a new file
+def upload_callback():
+    st.session_state.tour = None
+    st.session_state.sol = None
+    st.session_state.route_path = None
+
+
+# Update route path after solution
+def update_path(tour: List[int], dataframe: pd.DataFrame):
+    coord_rt = dataframe.loc[tour, :]
+    path = get_coord_path(coord_rt)
+    st.session_state.route_path = path
 
 
 MESSAGES = {
@@ -37,18 +60,6 @@ COORDS = {
     "xy": ["x", "y"],
     "lat-long": ["long", "lat"]
 }
-
-
-# Creates MIP paramters
-def mip_parameters():
-    params = {}
-    params["time_limit"] = st.sidebar.number_input("Time limit:", min_value=0, step=10, value=10)
-    json_file = st.sidebar.file_uploader("Solver config", type=["json"])
-    if json_file is not None:
-        custom_params = json.load(json_file)
-        for key, value in custom_params.items():
-            params[key] = value
-    return params
 
 
 # Read section of the README file
@@ -83,15 +94,22 @@ st.sidebar.image(icon_path)
 st.title("TSP")
 st.write("Welcome to the Traveling Salesman Problem solver.")
 
+display_tutorial = st.checkbox("Display tutorial")
+if display_tutorial:
+    section = st.selectbox("Choose a section", ["Execution", "Solutions", "Contact"], index=1)
+    tutorial = read_section(section)
+    st.markdown(tutorial)
+
 problem_type = st.sidebar.selectbox("Choose an input type:", ["xy", "lat-long"], index=0)
 st.write(MESSAGES[problem_type])
-file = st.file_uploader("Upload input file", type=["csv"])
+file = st.file_uploader("Upload input file", type=["csv"], on_change=upload_callback)
 
 method = st.sidebar.selectbox("Choose a strategy:", ["MIP", "Heuristic"], index=0)
-time_limit = st.sidebar.number_input("time limit", min_value=0, value=5, step=1)
+time_limit = st.sidebar.number_input("Time limit", min_value=0, value=5, step=1)
 
 if file is not None:
     dataframe = pd.read_csv(file)
+    st.session_state.dataframe = dataframe
     distances = FORMATS[problem_type](dataframe)
     start_button = st.button("Optimize")
 
@@ -104,30 +122,47 @@ if file is not None:
             solver.highs_options = {"time_limit": time_limit}
             model = build_mip(distances)
             tour = solve_mip(model, solver)
+            st.session_state.tour = tour
 
         # Solve Heuristic
         elif method == "Heuristic":
             model = TSP(distances)
             tour = model.solve(time_limit=time_limit)
+            st.session_state.tour = tour
 
         # Display the results
-        col_left, col_right = st.columns(2)
         sol = model.obj()
-        col_left.write(f"Current solution: {sol:.3f}")
-        col_right.download_button(
-            label="Download Output",
-            data=json.dumps(tour),
-            file_name='output.json',
-            mime='json',
-        )
+        st.session_state.sol = sol
 
-        # Plot solution
-        if problem_type == "xy":
-            fig = plot_tour(tour, dataframe[COORDS[problem_type]].values, dpi=100)
-            buffer = BytesIO()
-            fig.savefig(buffer, format="png")
-            st.image(buffer)
+        # Update path in case of lat-long
+        if problem_type == "lat-long":
+            update_path(tour, dataframe)
 
-        elif problem_type == "lat-long":
-            map = create_map(tour, dataframe)
-            st_folium(map, width=700, height=500, returned_objects=[])
+# Compute current state variables
+sol = st.session_state.sol
+tour = st.session_state.tour
+dataframe = st.session_state.dataframe
+
+if sol is not None and tour is not None:
+    col_left, col_right = st.columns(2)
+    col_left.write(f"Current solution: {sol:.3f}")
+    col_right.download_button(
+        label="Download Output",
+        data=json.dumps(tour),
+        file_name='output.json',
+        mime='json',
+    )
+
+if tour is not None and dataframe is not None:
+
+    # Plot solution
+    if problem_type == "xy":
+        fig = plot_tour(tour, dataframe[COORDS[problem_type]].values, dpi=100)
+        buffer = BytesIO()
+        fig.savefig(buffer, format="png")
+        st.image(buffer)
+
+    elif problem_type == "lat-long":
+        map = plot_map(st.session_state.route_path)
+        # map = create_map(tour, dataframe)
+        st_folium(map, width=700, height=500, returned_objects=[])

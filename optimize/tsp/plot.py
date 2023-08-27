@@ -1,4 +1,4 @@
-from typing import List, Iterable, Union
+from typing import List, Tuple, Union
 from itertools import cycle
 
 import numpy as np
@@ -37,7 +37,7 @@ def plot_tour(
     return fig
 
 
-def get_coord_path(coordinates: pd.DataFrame):
+def get_coord_path(coordinates: pd.DataFrame) -> List[Tuple[float, float]]:
     pts = get_request_points(coordinates)
     pts_req = ";".join(pts)
     r = session.get(
@@ -74,6 +74,32 @@ def create_map(
     # Trim zoom
     sw = coordinates[["lat", "long"]].min(axis=0).to_list()
     ne = coordinates[["lat", "long"]].max(axis=0).to_list()
+
+    m.fit_bounds([sw, ne])
+    return m
+
+
+def plot_map(
+    path: List[Tuple[float, float]],
+    color:Union[str, tuple] = "darkblue",
+    zoom_start=8,
+    **kwargs
+):
+    # Coordinates from path
+    lat, long = zip(*path)
+
+    # Create map
+    m = folium.Map(zoom_start=zoom_start)
+    new_line = folium.PolyLine(
+        path, weight=4, opacity=1.0,
+        color=color, tooltip=f"Route",
+        **kwargs
+    )
+    new_line.add_to(m)
+
+    # Trim zoom
+    sw = [min(lat), min(long)]
+    ne = [max(lat), max(long)]
 
     m.fit_bounds([sw, ne])
     return m

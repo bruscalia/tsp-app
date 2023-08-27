@@ -85,7 +85,7 @@ def _solve_step(model, solver, verbose=True):
     return sol, proceed
 
 
-def solve_mip(model, solver, verbose=True):
+def solve_mip(model, solver, verbose=False):
     proceed = True
     while proceed:
         sol, proceed = _solve_step(model, solver, verbose=verbose)
