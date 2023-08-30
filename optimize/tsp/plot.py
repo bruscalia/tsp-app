@@ -81,7 +81,7 @@ def create_map(
 
 def plot_map(
     path: List[Tuple[float, float]],
-    color:Union[str, tuple] = "darkblue",
+    color: Union[str, tuple] = "darkblue",
     zoom_start=8,
     **kwargs
 ):
