@@ -9,7 +9,8 @@ highspy==1.5.3
 requests==2.*
 networkx==3.*
 streamlit==1.12.*
-streamlit-folium==0.11.*
-ipykernel
+folium==0.14.0
+streamlit-folium==0.11.0
+tspgrasp==0.1.1
 altair==4
 absl-py>=0.13
