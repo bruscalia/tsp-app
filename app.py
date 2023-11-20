@@ -105,7 +105,11 @@ st.write(MESSAGES[problem_type])
 file = st.file_uploader("Upload input file", type=["csv"], on_change=upload_callback)
 
 method = st.sidebar.selectbox("Choose a strategy:", ["MIP", "Heuristic"], index=0)
-time_limit = st.sidebar.number_input("Time limit", min_value=0, value=5, step=1)
+time_limit = st.sidebar.number_input("Time limit", min_value=0, value=5, step=5)
+
+if method == "Heuristic":
+    alpha = st.sidebar.number_input("Greediness", min_value=0.0, value=0.95, step=0.05)
+    seed = st.sidebar.number_input("Random seed", min_value=0, format="%i")
 
 if file is not None:
     dataframe = pd.read_csv(file)
@@ -116,19 +120,22 @@ if file is not None:
     # Run if start is pressed
     if file is not None and start_button:
 
-        # Solve MIP
-        if method == "MIP":
-            solver = Highs()
-            solver.highs_options = {"time_limit": time_limit}
-            model = build_mip(distances)
-            tour = solve_mip(model, solver)
-            st.session_state.tour = tour
+        # Create a spinner while solving
+        with st.spinner("Optimizing"):
 
-        # Solve Heuristic
-        elif method == "Heuristic":
-            model = TSP(distances)
-            tour = model.solve(time_limit=time_limit)
-            st.session_state.tour = tour
+            # Solve MIP
+            if method == "MIP":
+                solver = Highs()
+                solver.highs_options = {"time_limit": time_limit}
+                model = build_mip(distances)
+                tour = solve_mip(model, solver)
+                st.session_state.tour = tour
+
+            # Solve Heuristic
+            elif method == "Heuristic":
+                model = TSP(distances, alpha=alpha, seed=seed)
+                tour = model.solve(time_limit=time_limit)
+                st.session_state.tour = tour
 
         # Display the results
         sol = model.obj()
@@ -136,7 +143,8 @@ if file is not None:
 
         # Update path in case of lat-long
         if problem_type == "lat-long":
-            update_path(tour, dataframe)
+            with st.spinner("Obtaining route coordinates"):
+                update_path(tour, dataframe)
 
 # Compute current state variables
 sol = st.session_state.sol
